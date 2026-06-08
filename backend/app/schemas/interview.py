@@ -31,6 +31,13 @@ class ChatResponse(BaseModel):
     interview_id: str | None = None
 
 
+class InterviewFinishResponse(BaseModel):
+    interview_id: str
+    stage: str
+    status: str
+    message: str
+
+
 class FollowupRequest(BaseModel):
     question: str
     answer: str

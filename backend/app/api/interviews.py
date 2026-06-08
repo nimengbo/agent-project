@@ -8,6 +8,7 @@ from app.schemas.interview import (
     ChatRequest,
     ChatResponse,
     FollowupRequest,
+    InterviewFinishResponse,
     InterviewCreateRequest,
     InterviewResponse,
 )
@@ -16,6 +17,18 @@ from app.services.interview_chains import answer_review_chain, followup_chain, q
 from app.services.rag_service import rag_service
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
+
+
+def _extract_asked_questions(conversation: str) -> str:
+    questions: list[str] = []
+    for raw_line in conversation.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith(("面试官：", "面试官:", "assistant：", "assistant:")) and ("?" in line or "？" in line):
+            question = line.split("：", 1)[-1] if "：" in line else line.split(":", 1)[-1]
+            questions.append(question.strip())
+    return "\n".join(f"- {question}" for question in questions) or "暂无"
 
 
 def _build_candidate_profile(base_profile: str, document_ids: list[str], query: str) -> str:
@@ -47,12 +60,23 @@ async def chat(request: ChatRequest) -> ChatResponse:
             difficulty=request.difficulty,
             candidate_profile=_build_candidate_profile(request.candidate_profile, request.document_ids, request.content),
             conversation=request.conversation,
+            asked_questions=_extract_asked_questions(request.conversation),
         )
     except DeepSeekNotConfiguredError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except DeepSeekAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ChatResponse(content=content, interview_id=request.interview_id)
+
+
+@router.post("/{interview_id}/finish", response_model=InterviewFinishResponse)
+def finish_interview(interview_id: str) -> InterviewFinishResponse:
+    return InterviewFinishResponse(
+        interview_id=interview_id,
+        stage=InterviewStage.summary.value,
+        status="finished",
+        message="面试已结束，可以生成复盘报告。",
+    )
 
 
 @router.post("/followup", response_model=ChatResponse)

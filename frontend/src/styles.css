@@ -143,6 +143,7 @@ h2 { font-size: 25px; }
   white-space: nowrap;
 }
 .live-dot.ok { background: rgba(45, 212, 191, .12); color: #5eead4; border-color: rgba(45, 212, 191, .25); }
+.live-dot.done { background: rgba(251, 191, 36, .13); color: #fde68a; border-color: rgba(251, 191, 36, .32); }
 
 .prompt-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .prompt-chip {
@@ -174,6 +175,8 @@ h2 { font-size: 25px; }
 .thinking { animation: pulse 1.4s ease-in-out infinite; }
 
 .composer { display: grid; grid-template-columns: 1fr 120px; gap: 12px; margin-top: 16px; }
+.interview-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+.interview-actions .secondary-button { min-width: 116px; padding: 10px 14px; border-radius: 14px; }
 textarea, input {
   width: 100%;
   border: 1px solid rgba(255,255,255,.12);
@@ -184,6 +187,7 @@ textarea, input {
   transition: border-color .2s ease, background .2s ease;
 }
 textarea:focus, input:focus { border-color: rgba(34, 211, 238, .58); background: rgba(255,255,255,.1); }
+textarea:disabled { color: #8a95aa; background: rgba(255,255,255,.04); cursor: not-allowed; }
 textarea { min-height: 96px; resize: vertical; padding: 14px; }
 input { padding: 12px 13px; margin-top: 7px; }
 label { display: block; margin-top: 14px; color: #b8c2dd; font-size: 13px; font-weight: 800; }
@@ -226,6 +230,21 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
   border-radius: 32px;
 }
 .report-panel p { margin: 10px 0 0; color: #aebbd4; line-height: 1.7; }
+.markdown-report { margin-top: 12px; color: #c8d4ea; line-height: 1.78; max-height: 420px; overflow: auto; }
+.markdown-report :first-child { margin-top: 0; }
+.markdown-report :last-child { margin-bottom: 0; }
+.markdown-report h1,
+.markdown-report h2,
+.markdown-report h3 { margin: 18px 0 8px; color: #f8fafc; letter-spacing: -.02em; }
+.markdown-report p,
+.markdown-report ul,
+.markdown-report ol { margin: 10px 0; }
+.markdown-report ul,
+.markdown-report ol { padding-left: 22px; }
+.markdown-report li { margin: 6px 0; }
+.markdown-report strong { color: #fde68a; }
+.markdown-report code { padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,.09); color: #93c5fd; }
+.markdown-report blockquote { margin: 14px 0; padding: 10px 14px; border-left: 3px solid #22d3ee; background: rgba(34,211,238,.08); color: #dbeafe; }
 .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .score-grid strong { font-size: 28px; color: #fbbf24; }
 .report-panel button { min-height: 54px; padding: 0 16px; }

@@ -37,11 +37,13 @@ class QuestionChain(BaseInterviewChain):
                         "system",
                         "你是一名资深技术面试官，正在为候选人进行中文模拟面试。"
                         "每轮只问一个具体、可回答的问题，不输出参考答案。"
-                        "问题需要贴合目标岗位、难度和候选人资料。",
+                        "问题需要贴合目标岗位、难度和候选人资料。"
+                        "严禁重复已问过的问题；如果同一主题已经问过，必须换一个角度继续追问。",
                     ),
                     (
                         "human",
                         "目标岗位：{position}\n难度：{difficulty}\n候选人资料：{candidate_profile}\n"
+                        "已问过的问题：{asked_questions}\n"
                         "已进行的对话：{conversation}\n请给出下一道面试问题。",
                     ),
                 ]
@@ -56,6 +58,7 @@ class QuestionChain(BaseInterviewChain):
         difficulty: str,
         candidate_profile: str = "暂无",
         conversation: str = "暂无",
+        asked_questions: str = "暂无",
     ) -> str:
         return await self.ainvoke(
             {
@@ -63,6 +66,7 @@ class QuestionChain(BaseInterviewChain):
                 "difficulty": difficulty,
                 "candidate_profile": candidate_profile,
                 "conversation": f"{conversation}\n候选人最新输入：{content}",
+                "asked_questions": asked_questions,
             }
         )
 

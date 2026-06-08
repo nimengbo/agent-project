@@ -35,6 +35,35 @@ def test_chat_includes_uploaded_document_context(monkeypatch):
     assert "候选人：你好" in captured["conversation"]
 
 
+def test_chat_passes_previously_asked_questions_to_chain(monkeypatch):
+    captured = {}
+
+    async def fake_generate(**kwargs):
+        captured.update(kwargs)
+        return "下一题"
+
+    monkeypatch.setattr(interviews.question_chain, "generate", fake_generate)
+
+    response = client.post(
+        "/api/interviews/chat",
+        json={
+            "content": "继续",
+            "conversation": "面试官：请介绍 Flutter 架构治理经验？\n候选人：我做过模块化。",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "请介绍 Flutter 架构治理经验？" in captured["asked_questions"]
+
+
+def test_finish_interview_returns_finished_status():
+    response = client.post("/api/interviews/local-demo/finish")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "finished"
+    assert response.json()["stage"] == "SUMMARY"
+
+
 def test_upload_rejects_unsupported_file_type():
     response = client.post(
         "/api/documents/upload",

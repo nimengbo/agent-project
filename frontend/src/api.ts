@@ -38,6 +38,13 @@ export type InterviewReport = {
   recommendations: string[];
 };
 
+export type FinishInterviewResponse = {
+  interview_id: string;
+  stage: string;
+  status: string;
+  message: string;
+};
+
 async function readJson<T>(response: Response, fallbackMessage: string): Promise<T> {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
@@ -78,6 +85,13 @@ export async function sendInterviewMessage(payload: {
   });
   const result = await readJson<{ content: string }>(response, '发送失败');
   return result.content;
+}
+
+export async function finishInterview(interviewId: string): Promise<FinishInterviewResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/interviews/${interviewId}/finish`, {
+    method: 'POST',
+  });
+  return readJson<FinishInterviewResponse>(response, '结束面试失败');
 }
 
 export async function generateInterviewReport(payload: {

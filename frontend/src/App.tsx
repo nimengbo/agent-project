@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
+  finishInterview,
   generateInterviewReport,
   getInterviewReport,
   getModelConfig,
@@ -54,6 +56,8 @@ export function App() {
   const [input, setInput] = useState('请你作为面试官，开始一场移动端架构师模拟面试。');
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [loading, setLoading] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const [interviewFinished, setInterviewFinished] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
@@ -65,9 +69,9 @@ export function App() {
     return [
       { label: 'DeepSeek Runtime', done: Boolean(modelConfig?.configured), detail: modelConfig?.configured ? modelConfig.api_key_preview ?? '已保存' : '等待保存 Key' },
       { label: 'RAG Source', done: documentsReady, detail: documentsReady ? `${uploadedDocuments.length} 份资料` : '可先上传简历/JD' },
-      { label: 'Interview Loop', done: messages.some((message) => message.role === 'user'), detail: loading ? '模型追问中' : '可开始对话' },
+      { label: 'Interview Loop', done: messages.some((message) => message.role === 'user'), detail: interviewFinished ? '已结束，可复盘' : loading ? '模型追问中' : '可开始对话' },
     ];
-  }, [loading, messages, modelConfig, uploadedDocuments.length]);
+  }, [interviewFinished, loading, messages, modelConfig, uploadedDocuments.length]);
 
   useEffect(() => {
     getModelConfig()
@@ -100,7 +104,7 @@ export function App() {
   }
 
   async function handleSend() {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || interviewFinished) return;
     const userMessage: ChatMessage = { role: 'user', content: input.trim() };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
@@ -120,6 +124,24 @@ export function App() {
       ]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleFinishInterview() {
+    if (ending || interviewFinished) return;
+    setEnding(true);
+    try {
+      const result = await finishInterview(INTERVIEW_ID);
+      setInterviewFinished(true);
+      setMessages((current) => [...current, { role: 'system', content: result.message }]);
+      setReportMessage('面试已结束，现在可以生成最终复盘报告。');
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        { role: 'system', content: error instanceof Error ? error.message : '结束面试失败' },
+      ]);
+    } finally {
+      setEnding(false);
     }
   }
 
@@ -203,8 +225,8 @@ export function App() {
               <p className="eyebrow">Live Interview</p>
               <h2>对话式模拟面试</h2>
             </div>
-            <span className={modelConfig?.configured ? 'live-dot ok' : 'live-dot'}>
-              {modelConfig?.configured ? '模型已配置' : '待配置模型'}
+            <span className={interviewFinished ? 'live-dot done' : modelConfig?.configured ? 'live-dot ok' : 'live-dot'}>
+              {interviewFinished ? '面试已结束' : modelConfig?.configured ? '模型已配置' : '待配置模型'}
             </span>
           </div>
 
@@ -229,17 +251,24 @@ export function App() {
           <div className="composer">
             <textarea
               aria-label="面试输入"
+              disabled={interviewFinished}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.metaKey && event.key === 'Enter') handleSend();
               }}
+              placeholder={interviewFinished ? '面试已结束，请生成复盘报告。' : '输入你的回答，按 ⌘ + Enter 发送'}
               value={input}
             />
-            <button onClick={handleSend} disabled={loading || !input.trim()} type="button">
+            <button onClick={handleSend} disabled={loading || interviewFinished || !input.trim()} type="button">
               {loading ? '等待中' : '发送'}
             </button>
           </div>
-          <p className="shortcut">提示：按 ⌘ + Enter 发送；每轮只保留一个明确追问，更接近真实面试节奏。</p>
+          <div className="interview-actions">
+            <p className="shortcut">提示：按 ⌘ + Enter 发送；结束后可生成最终复盘报告。</p>
+            <button className="secondary-button" onClick={handleFinishInterview} disabled={ending || interviewFinished} type="button">
+              {interviewFinished ? '已结束' : ending ? '结束中...' : '结束面试'}
+            </button>
+          </div>
         </section>
 
         <aside className="side-panel">
@@ -303,7 +332,9 @@ export function App() {
         <div>
           <p className="eyebrow">Interview Report</p>
           <h2>复盘报告</h2>
-          <p>{generatedReport || report?.summary || reportMessage}</p>
+          <div className="markdown-report">
+            <ReactMarkdown>{generatedReport || report?.summary || reportMessage}</ReactMarkdown>
+          </div>
         </div>
         <div className="score-grid">
           {Object.entries(report?.scores ?? {
@@ -318,7 +349,7 @@ export function App() {
             </div>
           ))}
         </div>
-        <button onClick={handleGenerateReport} type="button">生成当前面试报告</button>
+        <button onClick={handleGenerateReport} type="button">{interviewFinished ? '生成最终复盘报告' : '生成当前面试报告'}</button>
         <button className="secondary-button" onClick={handleLoadReport} type="button">读取结构化占位</button>
       </section>
     </main>
