@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import math
 import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, ClassVar, Protocol
 
 from app.core.config import settings
 
@@ -16,6 +18,21 @@ try:
 except ImportError:  # pragma: no cover - dependency is optional at import time
     QdrantClient = None
     qdrant_models = None
+
+try:
+    from fastembed import TextEmbedding
+except ImportError:  # pragma: no cover - dependency is optional at import time
+    TextEmbedding = None
+
+try:
+    from pypdf import PdfReader
+except ImportError:  # pragma: no cover - dependency is optional at import time
+    PdfReader = None
+
+try:
+    from docx import Document as DocxDocument
+except ImportError:  # pragma: no cover - dependency is optional at import time
+    DocxDocument = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +61,15 @@ class RetrievalResult:
     metadata: dict[str, Any]
 
 
+class EmbeddingProvider(Protocol):
+    dimension: int
+    provider_name: str
+
+    def embed(self, text: str) -> list[float]: ...
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]: ...
+
+
 class DocumentParser:
     def parse(
         self,
@@ -52,8 +78,18 @@ class DocumentParser:
         content_type: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ParsedDocument:
-        text = content.decode("utf-8", errors="ignore")
-        normalized_text = re.sub(r"\r\n?", "\n", text).strip()
+        suffix = Path(filename).suffix.lower()
+        parser_name = "text"
+        if suffix == ".pdf" or content_type == "application/pdf":
+            text = self._parse_pdf(content)
+            parser_name = "pdf"
+        elif suffix == ".docx" or content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            text = self._parse_docx(content)
+            parser_name = "docx"
+        else:
+            text = self._parse_text(content)
+
+        normalized_text = self._normalize_text(text)
         return ParsedDocument(
             document_id=str(uuid.uuid4()),
             filename=filename,
@@ -63,10 +99,46 @@ class DocumentParser:
                 "filename": filename,
                 "content_type": content_type,
                 "byte_size": len(content),
+                "parser": parser_name,
+                "char_count": len(normalized_text),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 **(metadata or {}),
             },
         )
+
+    def _parse_text(self, content: bytes) -> str:
+        for encoding in ("utf-8", "utf-8-sig", "gb18030"):
+            try:
+                return content.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return content.decode("utf-8", errors="ignore")
+
+    def _parse_pdf(self, content: bytes) -> str:
+        if PdfReader is None:
+            raise ValueError("PDF 解析依赖 pypdf 未安装。")
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as exc:
+            raise ValueError("PDF 文件解析失败，请确认文件未加密且内容可复制。") from exc
+
+    def _parse_docx(self, content: bytes) -> str:
+        if DocxDocument is None:
+            raise ValueError("DOCX 解析依赖 python-docx 未安装。")
+        try:
+            document = DocxDocument(io.BytesIO(content))
+            paragraphs = [paragraph.text for paragraph in document.paragraphs]
+            table_cells = [cell.text for table in document.tables for row in table.rows for cell in row.cells]
+            return "\n".join([*paragraphs, *table_cells])
+        except Exception as exc:
+            raise ValueError("DOCX 文件解析失败，请确认文件格式正确。") from exc
+
+    def _normalize_text(self, text: str) -> str:
+        text = re.sub(r"\r\n?", "\n", text)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
 
 
 class TextChunker:
@@ -109,9 +181,14 @@ class TextChunker:
         return chunks
 
 
-class PlaceholderEmbeddingProvider:
+class HashingEmbeddingProvider:
+    provider_name = "hashing"
+
     def __init__(self, dimension: int = 384) -> None:
         self.dimension = dimension
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed(text) for text in texts]
 
     def embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimension
@@ -128,6 +205,44 @@ class PlaceholderEmbeddingProvider:
         return [value / norm for value in vector]
 
 
+class FastEmbedEmbeddingProvider:
+    provider_name = "fastembed"
+
+    def __init__(self, model_name: str) -> None:
+        if TextEmbedding is None:
+            raise RuntimeError("fastembed is not installed")
+        self.model_name = model_name
+        self._model = TextEmbedding(model_name=model_name)
+        self.dimension = len(self.embed("dimension probe"))
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return [self._normalize(vector.tolist() if hasattr(vector, "tolist") else list(vector)) for vector in self._model.embed(texts)]
+
+    def embed(self, text: str) -> list[float]:
+        return self.embed_many([text or " "])[0]
+
+    def _normalize(self, vector: list[float]) -> list[float]:
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+
+class EmbeddingProviderFactory:
+    @staticmethod
+    def build() -> EmbeddingProvider:
+        provider = settings.rag_embedding_provider.lower()
+        if provider == "fastembed":
+            try:
+                return FastEmbedEmbeddingProvider(settings.rag_embedding_model)
+            except Exception:
+                if not settings.rag_allow_hashing_fallback:
+                    raise
+        return HashingEmbeddingProvider(dimension=settings.rag_embedding_dimension)
+
+
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if not left or not right or len(left) != len(right):
         return 0.0
@@ -135,6 +250,8 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
 
 
 class InMemoryVectorStore:
+    backend_name = "memory"
+
     def __init__(self) -> None:
         self._items: dict[str, tuple[list[float], DocumentChunk]] = {}
 
@@ -172,12 +289,25 @@ class InMemoryVectorStore:
 
 
 class QdrantVectorStore:
-    def __init__(self, collection_name: str, dimension: int, url: str | None = None) -> None:
+    backend_name = "qdrant"
+    _client_cache: ClassVar[dict[str, Any]] = {}
+
+    def __init__(self, collection_name: str, dimension: int, url: str | None = None, path: str | None = None) -> None:
         if QdrantClient is None or qdrant_models is None:
             raise RuntimeError("qdrant-client is not installed")
         self.collection_name = collection_name
         self.dimension = dimension
-        self.client = QdrantClient(url=url or settings.qdrant_url)
+        if path:
+            Path(path).mkdir(parents=True, exist_ok=True)
+            cache_key = f"path:{Path(path).resolve()}"
+            if cache_key not in self._client_cache:
+                self._client_cache[cache_key] = QdrantClient(path=path)
+            self.client = self._client_cache[cache_key]
+        else:
+            cache_key = f"url:{url or settings.qdrant_url}"
+            if cache_key not in self._client_cache:
+                self._client_cache[cache_key] = QdrantClient(url=url or settings.qdrant_url)
+            self.client = self._client_cache[cache_key]
 
     def ensure_collection(self) -> None:
         assert qdrant_models is not None
@@ -219,19 +349,7 @@ class QdrantVectorStore:
             limit=limit,
             with_payload=True,
         )
-        results: list[RetrievalResult] = []
-        for point in points:
-            payload = point.payload or {}
-            results.append(
-                RetrievalResult(
-                    chunk_id=str(payload.get("chunk_id", point.id)),
-                    document_id=str(payload.get("document_id", "")),
-                    text=str(payload.get("text", "")),
-                    score=float(point.score),
-                    metadata=dict(payload.get("metadata") or {}),
-                )
-            )
-        return results
+        return [self._point_to_result(point, default_score=float(point.score)) for point in points]
 
     def get_chunks(self, document_ids: list[str], limit: int = 6) -> list[RetrievalResult]:
         assert qdrant_models is not None
@@ -249,19 +367,18 @@ class QdrantVectorStore:
             limit=limit,
             with_payload=True,
         )
-        results: list[RetrievalResult] = []
-        for point in points:
-            payload = point.payload or {}
-            results.append(
-                RetrievalResult(
-                    chunk_id=str(payload.get("chunk_id", point.id)),
-                    document_id=str(payload.get("document_id", "")),
-                    text=str(payload.get("text", "")),
-                    score=1.0,
-                    metadata=dict(payload.get("metadata") or {}),
-                )
-            )
-        return results
+        results = [self._point_to_result(point, default_score=1.0) for point in points]
+        return sorted(results, key=lambda item: item.metadata.get("chunk_index", 0))
+
+    def _point_to_result(self, point: Any, default_score: float) -> RetrievalResult:
+        payload = point.payload or {}
+        return RetrievalResult(
+            chunk_id=str(payload.get("chunk_id", point.id)),
+            document_id=str(payload.get("document_id", "")),
+            text=str(payload.get("text", "")),
+            score=default_score,
+            metadata=dict(payload.get("metadata") or {}),
+        )
 
 
 class RagKnowledgeBaseService:
@@ -271,7 +388,7 @@ class RagKnowledgeBaseService:
             chunk_size=settings.rag_chunk_size,
             overlap=settings.rag_chunk_overlap,
         )
-        self.embedding_provider = PlaceholderEmbeddingProvider(dimension=settings.rag_embedding_dimension)
+        self.embedding_provider = EmbeddingProviderFactory.build()
         self.vector_store = self._build_vector_store()
 
     def _build_vector_store(self) -> InMemoryVectorStore | QdrantVectorStore:
@@ -279,11 +396,13 @@ class RagKnowledgeBaseService:
             try:
                 return QdrantVectorStore(
                     collection_name=settings.rag_collection_name,
-                    dimension=settings.rag_embedding_dimension,
+                    dimension=self.embedding_provider.dimension,
                     url=settings.qdrant_url,
+                    path=settings.qdrant_path or None,
                 )
             except Exception:
-                return InMemoryVectorStore()
+                if not settings.rag_allow_memory_fallback:
+                    raise
         return InMemoryVectorStore()
 
     def ingest_document(
@@ -295,7 +414,7 @@ class RagKnowledgeBaseService:
     ) -> dict[str, Any]:
         document = self.parser.parse(content, filename, content_type, metadata)
         chunks = self.chunker.split(document)
-        embeddings = [self.embedding_provider.embed(chunk.text) for chunk in chunks]
+        embeddings = self.embedding_provider.embed_many([chunk.text for chunk in chunks])
         indexed_chunks = self.vector_store.upsert(chunks, embeddings) if chunks else 0
         return {
             "document_id": document.document_id,
@@ -305,7 +424,12 @@ class RagKnowledgeBaseService:
             "chunk_count": len(chunks),
             "indexed_chunks": indexed_chunks,
             "status": "indexed" if indexed_chunks else "empty",
-            "metadata": document.metadata,
+            "metadata": {
+                **document.metadata,
+                "embedding_provider": self.embedding_provider.provider_name,
+                "embedding_dimension": self.embedding_provider.dimension,
+                "vector_store": self.vector_store.backend_name,
+            },
         }
 
     def search(self, query: str, limit: int = 5, document_ids: list[str] | None = None) -> list[RetrievalResult]:

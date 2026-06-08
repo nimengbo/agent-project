@@ -100,6 +100,17 @@ npm run dev
 
 前端地址：`http://localhost:5173`。
 
+## RAG 与向量库
+
+后端默认启用生产化 RAG 路径：
+
+- 文档解析：`.txt` / `.md` 直接解析，`.pdf` 使用 `pypdf`，`.docx` 使用 `python-docx`。
+- 向量模型：默认使用 `fastembed` 的 `intfloat/multilingual-e5-small`，更适合中英文简历、JD 和项目材料检索。
+- 向量存储：默认使用 Qdrant 本地持久化路径 `backend/runtime/qdrant`，数据不会因为后端进程重启丢失。
+- 外部 Qdrant：如需连接 Docker Qdrant 服务，设置 `QDRANT_PATH=` 为空，并配置 `QDRANT_URL=http://localhost:6333`。
+
+首次启动会下载 embedding 模型，耗时取决于网络。若模型或 Qdrant 初始化失败，开发模式会自动降级到 hashing embedding / 内存向量库；生产环境可把 `RAG_ALLOW_HASHING_FALLBACK=false`、`RAG_ALLOW_MEMORY_FALLBACK=false` 改为失败即报错。
+
 ## 模型配置
 
 进入前端页面的“模型配置”区域，输入：
