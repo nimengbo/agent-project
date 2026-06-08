@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>模拟面试助手技术方案</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --primary: #315efb;
+      --primary-soft: #e9efff;
+      --green: #13a36f;
+      --orange: #f79009;
+      --border: #e4e7ec;
+      --code: #101828;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 10% 0%, #eef4ff 0, transparent 30%), var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 48px 24px 72px; }
+    .hero {
+      padding: 48px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #102a7a 0%, #315efb 56%, #7b61ff 100%);
+      color: white;
+      box-shadow: 0 24px 60px rgba(49, 94, 251, .24);
+    }
+    .hero h1 { margin: 0 0 16px; font-size: 42px; letter-spacing: -0.04em; }
+    .hero p { max-width: 820px; margin: 0; font-size: 18px; color: rgba(255,255,255,.86); }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    .badge { padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.14); color: white; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; margin-top: 24px; }
+    .card {
+      grid-column: span 6;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 26px;
+      box-shadow: 0 12px 32px rgba(16,24,40,.06);
+    }
+    .card.full { grid-column: 1 / -1; }
+    .card.third { grid-column: span 4; }
+    h2 { margin: 0 0 14px; font-size: 24px; letter-spacing: -0.02em; }
+    h3 { margin: 18px 0 8px; font-size: 17px; }
+    p { margin: 8px 0; }
+    ul { padding-left: 20px; margin: 10px 0 0; }
+    li { margin: 6px 0; }
+    .muted { color: var(--muted); }
+    .pill { display: inline-block; padding: 5px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; }
+    .stack { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .stack span { padding: 7px 10px; border-radius: 10px; background: #f2f4f7; color: #344054; font-size: 13px; }
+    pre {
+      overflow-x: auto;
+      background: var(--code);
+      color: #e6edf3;
+      padding: 18px;
+      border-radius: 16px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .flow { display: grid; gap: 10px; margin-top: 14px; }
+    .step { padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: #fbfcff; }
+    .step strong { color: var(--primary); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--border); padding: 12px 10px; text-align: left; vertical-align: top; }
+    th { color: #344054; background: #f8fafc; }
+    .agent { border-left: 4px solid var(--primary); }
+    .ok { color: var(--green); font-weight: 700; }
+    .warn { color: var(--orange); font-weight: 700; }
+    @media (max-width: 860px) { .card, .card.third { grid-column: 1 / -1; } .hero { padding: 32px; } .hero h1 { font-size: 32px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>模拟面试助手技术方案</h1>
+      <p>基于 React + Python FastAPI + LangChain + RAG + DeepSeek 的对话式模拟面试系统，采用“应用本机跑，依赖 Docker 跑”的开发模式，优先完成可演示 MVP 闭环。</p>
+      <div class="badge-row">
+        <span class="badge">React 对话式前端</span>
+        <span class="badge">FastAPI 后端</span>
+        <span class="badge">LangChain 应用编排</span>
+        <span class="badge">DeepSeek 模型调用</span>
+        <span class="badge">Qdrant RAG 知识库</span>
+        <span class="badge">PostgreSQL / Redis / MinIO</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card full">
+        <span class="pill">01 / 产品定位</span>
+        <h2>面向求职者的 AI 模拟面试训练系统</h2>
+        <p>系统通过用户上传的简历、岗位 JD、题库、公司资料和历史回答构建个人知识库，并由 AI 面试官以对话方式持续提问、追问、评分和生成复盘报告。</p>
+        <div class="stack">
+          <span>岗位定制面试</span><span>专项训练</span><span>简历深挖</span><span>系统设计</span><span>行为面试</span><span>面试复盘</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="pill">02 / 开发模式</span>
+        <h2>App 本机跑，依赖 Docker 跑</h2>
+        <p>React、FastAPI、LangChain 直接运行在 Mac 本机，便于热更新、断点调试和快速迭代；PostgreSQL、Redis、Qdrant、MinIO 通过 Docker Compose 启动，保证基础设施稳定一致。</p>
+        <ul>
+          <li><strong>本机：</strong>React、FastAPI、LangChain、DeepSeek API 调用逻辑。</li>
+          <li><strong>Docker：</strong>PostgreSQL、Redis、Qdrant、MinIO。</li>
+          <li><strong>MVP 可简化：</strong>先只启 PostgreSQL + Qdrant，Redis / MinIO 后补。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <span class="pill">03 / 推荐版本</span>
+        <h2>环境版本矩阵</h2>
+        <table>
+          <tr><th>模块</th><th>版本</th></tr>
+          <tr><td>Node.js</td><td>22 LTS</td></tr>
+          <tr><td>React</td><td>18.3.1</td></tr>
+          <tr><td>Vite</td><td>6.x</td></tr>
+          <tr><td>TypeScript</td><td>5.7+</td></tr>
+          <tr><td>Python</td><td>3.11.x</td></tr>
+          <tr><td>FastAPI</td><td>0.115.x</td></tr>
+          <tr><td>LangChain</td><td>0.3.x</td></tr>
+          <tr><td>PostgreSQL</td><td>16</td></tr>
+          <tr><td>Redis</td><td>7</td></tr>
+          <tr><td>Qdrant</td><td>1.13.x</td></tr>
+        </table>
+      </article>
+
+      <article class="card full">
+        <span class="pill">04 / 总体架构</span>
+        <h2>系统链路</h2>
+        <pre>React Web localhost:5173
+  │ REST / SSE / WebSocket
+  ▼
+FastAPI Backend localhost:8000
+  ├─ Interview Orchestrator：面试状态机与流程控制
+  ├─ LangChain Layer：Prompt / Chain / Retriever / Tool 编排
+  ├─ RAG Service：文档召回、Rerank、上下文组装
+  ├─ Evaluation Service：单轮评价与整场报告
+  └─ DeepSeek Service：OpenAI-compatible 模型调用
+
+Docker Dependencies
+  ├─ PostgreSQL localhost:5432：业务数据
+  ├─ Redis localhost:6379：缓存、任务状态、限流
+  ├─ Qdrant localhost:6333：向量检索
+  └─ MinIO localhost:9000：上传文件对象存储</pre>
+      </article>
+
+      <article class="card third">
+        <span class="pill">05 / 前端</span>
+        <h2>React 对话式体验</h2>
+        <ul>
+          <li>首页：创建面试、历史面试。</li>
+          <li>资料库：上传简历、JD、题库。</li>
+          <li>配置页：选择岗位、难度、资料范围。</li>
+          <li>面试页：聊天窗口、阶段、实时反馈、引用来源。</li>
+          <li>报告页：总分、分项评分、建议答案、训练计划。</li>
+        </ul>
+      </article>
+
+      <article class="card third">
+        <span class="pill">06 / 后端</span>
+        <h2>FastAPI 服务分层</h2>
+        <ul>
+          <li>API 层：documents、interviews、messages、reports。</li>
+          <li>服务层：文档解析、RAG、面试编排、评价。</li>
+          <li>Chain 层：提问、追问、评分、报告生成。</li>
+          <li>数据层：SQLAlchemy + Alembic。</li>
+          <li>配置层：pydantic-settings 管理环境变量。</li>
+        </ul>
+      </article>
+
+      <article class="card third">
+        <span class="pill">07 / AI</span>
+        <h2>LangChain + DeepSeek</h2>
+        <ul>
+          <li>DeepSeek Chat：常规提问与对话。</li>
+          <li>DeepSeek Reasoner：复杂评价、系统设计追问。</li>
+          <li>Embedding：BGE / Qwen Embedding。</li>
+          <li>Retriever：Qdrant VectorStore。</li>
+          <li>Prompt：严格约束“每次只问一个问题”。</li>
+        </ul>
+      </article>
+
+      <article class="card full">
+        <span class="pill">08 / RAG 知识库</span>
+        <h2>资料上传到面试召回</h2>
+        <div class="flow">
+          <div class="step"><strong>1. 上传：</strong>简历、JD、题库、项目说明、公司资料。</div>
+          <div class="step"><strong>2. 解析：</strong>PDF / DOCX / Markdown / TXT 转纯文本并清洗。</div>
+          <div class="step"><strong>3. 切分：</strong>按语义 chunk，附带 document_type、section、tags 等 metadata。</div>
+          <div class="step"><strong>4. 向量化：</strong>调用 embedding 模型写入 Qdrant。</div>
+          <div class="step"><strong>5. 召回：</strong>面试时按阶段限定 scope，检索相关 chunk，必要时 rerank。</div>
+          <div class="step"><strong>6. 注入：</strong>将高相关知识注入 Prompt，让 DeepSeek 基于真实资料提问和评价。</div>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="pill">09 / 面试状态机</span>
+        <h2>流程可控，不让模型自由乱跑</h2>
+        <pre>INIT
+  → SELF_INTRO
+  → RESUME_DEEP_DIVE
+  → TECHNICAL_QUESTIONS
+  → SYSTEM_DESIGN
+  → BEHAVIORAL
+  → SUMMARY
+  → FINISHED</pre>
+        <p class="muted">后端维护阶段、题目数量、难度和 RAG scope。LLM 负责生成内容，不负责决定全部业务流程。</p>
+      </article>
+
+      <article class="card">
+        <span class="pill">10 / 核心 API</span>
+        <h2>第一版接口</h2>
+        <ul>
+          <li><code>POST /api/documents/upload</code> 上传资料。</li>
+          <li><code>POST /api/interviews</code> 创建面试。</li>
+          <li><code>POST /api/interviews/{id}/messages</code> 发送回答并流式返回。</li>
+          <li><code>POST /api/interviews/{id}/finish</code> 结束面试。</li>
+          <li><code>GET /api/interviews/{id}/report</code> 获取报告。</li>
+        </ul>
+      </article>
+
+      <article class="card full">
+        <span class="pill">11 / 多 Agent 执行思路</span>
+        <h2>拆成多个 agent 并行推进</h2>
+        <p>这个项目天然可以拆成多个独立工作流：前端、后端 API、RAG、LangChain、DevOps、测试文档之间边界清晰。建议由一个主控 agent 负责架构约束、接口契约和集成验收，其余 agent 并行实现各自模块。</p>
+        <div class="grid" style="margin-top: 8px;">
+          <div class="card third agent"><h3>Agent A：前端</h3><p>实现 React 页面、对话 UI、SSE 流式渲染、上传组件和报告页。</p></div>
+          <div class="card third agent"><h3>Agent B：后端 API</h3><p>实现 FastAPI 路由、数据模型、会话存储、面试状态机。</p></div>
+          <div class="card third agent"><h3>Agent C：RAG</h3><p>实现文档解析、chunk、embedding、Qdrant 检索和 metadata 过滤。</p></div>
+          <div class="card third agent"><h3>Agent D：LangChain</h3><p>实现提问链、追问链、评价链、报告链和 DeepSeek 适配。</p></div>
+          <div class="card third agent"><h3>Agent E：DevOps</h3><p>实现 Docker Compose、环境变量模板、启动脚本和 README。</p></div>
+          <div class="card third agent"><h3>Agent F：测试验收</h3><p>实现 API 测试、RAG 检索测试、端到端手工验收清单。</p></div>
+        </div>
+      </article>
+
+      <article class="card full">
+        <span class="pill">12 / MVP 里程碑</span>
+        <h2>推荐落地顺序</h2>
+        <table>
+          <tr><th>阶段</th><th>目标</th><th>验收标准</th></tr>
+          <tr><td>Phase 1</td><td>基础项目与依赖服务</td><td class="ok">前端、后端、PostgreSQL、Qdrant 可启动</td></tr>
+          <tr><td>Phase 2</td><td>基础聊天与 DeepSeek</td><td class="ok">前端可收到后端流式 AI 输出</td></tr>
+          <tr><td>Phase 3</td><td>文档上传与 RAG</td><td class="ok">上传简历/JD 后可基于资料提问</td></tr>
+          <tr><td>Phase 4</td><td>面试状态机</td><td class="ok">完整跑完一场结构化面试</td></tr>
+          <tr><td>Phase 5</td><td>评价与报告</td><td class="ok">生成单轮反馈和最终报告</td></tr>
+        </table>
+      </article>
+
+      <article class="card full">
+        <span class="pill">13 / 结论</span>
+        <h2>第一版建议</h2>
+        <p>第一版不要追求复杂功能，先打通 <strong>“上传资料 → RAG 检索 → 对话模拟面试 → 单轮评价 → 最终报告”</strong> 主链路。开发环境采用 App 本机跑、依赖 Docker 跑，兼顾调试效率和环境稳定性。工程执行上建议多 agent 并行开发，由主控 agent 负责接口契约和集成验收。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
