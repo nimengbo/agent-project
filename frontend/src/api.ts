@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export type PublicModelConfig = {
   configured: boolean;
@@ -54,12 +54,12 @@ async function readJson<T>(response: Response, fallbackMessage: string): Promise
 }
 
 export async function getModelConfig(): Promise<PublicModelConfig> {
-  const response = await fetch(`${API_BASE_URL}/api/config/model`);
+  const response = await fetch(`${API_BASE_URL}/config/model`);
   return readJson<PublicModelConfig>(response, '读取模型配置失败');
 }
 
 export async function saveModelConfig(payload: ModelConfigPayload): Promise<PublicModelConfig> {
-  const response = await fetch(`${API_BASE_URL}/api/config/model`, {
+  const response = await fetch(`${API_BASE_URL}/config/model`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -72,7 +72,7 @@ export async function sendInterviewMessage(payload: {
   conversation: ChatMessagePayload[];
   documentIds: string[];
 }): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/interviews/chat`, {
+  const response = await fetch(`${API_BASE_URL}/interviews/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -88,7 +88,7 @@ export async function sendInterviewMessage(payload: {
 }
 
 export async function finishInterview(interviewId: string): Promise<FinishInterviewResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/interviews/${interviewId}/finish`, {
+  const response = await fetch(`${API_BASE_URL}/interviews/${interviewId}/finish`, {
     method: 'POST',
   });
   return readJson<FinishInterviewResponse>(response, '结束面试失败');
@@ -99,7 +99,7 @@ export async function generateInterviewReport(payload: {
   conversation: ChatMessagePayload[];
   documentIds: string[];
 }): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/generate`, {
+  const response = await fetch(`${API_BASE_URL}/reports/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -124,7 +124,7 @@ function formatConversation(messages: ChatMessagePayload[]): string {
 export async function uploadDocument(file: File): Promise<UploadedDocumentResponse> {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
+  const response = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
     body: formData,
   });
@@ -132,6 +132,6 @@ export async function uploadDocument(file: File): Promise<UploadedDocumentRespon
 }
 
 export async function getInterviewReport(interviewId: string): Promise<InterviewReport> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/${interviewId}`);
+  const response = await fetch(`${API_BASE_URL}/reports/${interviewId}`);
   return readJson<InterviewReport>(response, '读取报告失败');
 }
