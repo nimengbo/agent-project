@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      MODEL_CONFIG_PATH: /app/runtime/model_config.json
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_PATH: ""
+      RAG_USE_QDRANT: "true"
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+          urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+  qdrant:
+    image: docker.m.daocloud.io/qdrant/qdrant:v1.12.6
+    restart: unless-stopped
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  backend_runtime:
+  qdrant_storage:
