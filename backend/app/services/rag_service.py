@@ -309,6 +309,14 @@ class QdrantVectorStore:
                 self._client_cache[cache_key] = QdrantClient(url=url or settings.qdrant_url)
             self.client = self._client_cache[cache_key]
 
+    @classmethod
+    def close_cached_clients(cls) -> None:
+        for client in cls._client_cache.values():
+            close = getattr(client, "close", None)
+            if close is not None:
+                close()
+        cls._client_cache.clear()
+
     def ensure_collection(self) -> None:
         assert qdrant_models is not None
         collections = self.client.get_collections().collections

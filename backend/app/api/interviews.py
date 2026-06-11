@@ -54,11 +54,20 @@ def create_interview(request: InterviewCreateRequest) -> InterviewResponse:
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     try:
+        rag_query = request.content.strip()
+        control_intents = {"继续", "下一题", "跳过", "换一个", "next", "skip"}
+        if rag_query.lower() in control_intents:
+            conversation_lines = [
+                line.strip()
+                for line in request.conversation.splitlines()
+                if line.strip() and rag_query.lower() not in line.lower()
+            ]
+            rag_query = "\n".join(conversation_lines[-4:]) or request.content
         content = await question_chain.generate(
             content=request.content,
             position=request.position,
             difficulty=request.difficulty,
-            candidate_profile=_build_candidate_profile(request.candidate_profile, request.document_ids, request.content),
+            candidate_profile=_build_candidate_profile(request.candidate_profile, request.document_ids, rag_query),
             conversation=request.conversation,
             asked_questions=_extract_asked_questions(request.conversation),
         )

@@ -1,13 +1,19 @@
-.DS_Store
 .env
+.DS_Store
+.idea/
+**/.idea/
 docker/.env
 backend/.env
 frontend/.env
-backend/.venv
-backend/runtime/
-__pycache__/
-*.py[cod]
-frontend/node_modules/
-frontend/dist/
-frontend/tsconfig.tsbuildinfo
 
+runtime/
+backend/runtime/
+backend/.venv/
+backend/.pytest_cache/
+**/__pycache__/
+*.py[cod]
+
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo

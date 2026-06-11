@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import config, documents, interviews, reports
+from app.services.rag_service import QdrantVectorStore
 
 app = FastAPI(title="模拟面试助手 API", version="0.1.0")
 
@@ -22,3 +23,8 @@ app.include_router(reports.router, prefix="/api")
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("shutdown")
+def shutdown() -> None:
+    QdrantVectorStore.close_cached_clients()
